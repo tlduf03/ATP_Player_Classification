@@ -4,7 +4,7 @@ import numpy as np
 import base64
 import cv2
 from wavelet import w2d
-import os
+import matplotlib.pyplot as plt
 # Mission : How the UI send an imgae to backend server? Base64 (drag&drop)
 
 #private variables
@@ -17,9 +17,11 @@ def classify_images(image_base_64, file_path=None):
     Classify an input image
     The input is either base64 string or file_path
     """
-    imgs = get_cropped_image_if_2_eyes(file_path, image_base_64)
+    imgs = get_cropped_image(image_base_64, file_path)
+    if not imgs:
+        return "No cropped images found..."
     
-    result = []
+    result = [] #output class(player)
     for img in imgs:
         #scale a single image
         scaled_img = cv2.resize(img,(32,32))
@@ -38,6 +40,9 @@ def classify_images(image_base_64, file_path=None):
             'class_probability': np.round(__model.predict_proba(final)*100,2).tolist()[0], #probability of input images against other classes
             'class_dictionary': __class_name_to_numbers
         })
+    
+    if not result:
+        return "Face not Detected!"
     return result
     
 def load_saved_artifacts():
@@ -49,7 +54,7 @@ def load_saved_artifacts():
     global __class_number_to_name
     with open('server/artifacts/class_dictionary.json', 'r') as f:
         __class_name_to_numbers = json.load(f)
-        __class_number_to_name = {v:k for k,v in __class_name_to_numbers.items()} 
+        __class_number_to_name = {v:k for k,v in __class_name_to_numbers.items()}
     
     global __model
     if __model is None:
@@ -58,25 +63,20 @@ def load_saved_artifacts():
     
     print("Loaded artifacts successfully!")
     
-        
 def get_cv2_image_from_base64_string(b64str):
     """
     Convert encoded base64 image to cv2 image
     """
     encoded_data = b64str.split(',')[1]
-   
-    nparr = np.frombuffer(base64.b64decode(bytes(encoded_data, "UTF-8")))
+    nparr = np.frombuffer(base64.b64decode(bytes(encoded_data, "UTF-8")), dtype=np.uint8)
     # nparr = np.frombuffer(base64.b64encode(encoded_data),np.uint8)
-  
     img = cv2.imdecode(nparr,cv2.IMREAD_COLOR)
-    
     return img
 
-def get_cropped_image_if_2_eyes(image_path, image_base64_data):
+def get_cropped_image(image_base64_data, image_path):
     """
-    get the face images with 2 eyes
+    get the face images
     """
-    
     face_cascade = cv2.CascadeClassifier('./server/opencv/haarcascades/haarcascade_frontalface_default.xml')
     eye_cascade = cv2.CascadeClassifier('./server/opencv/haarcascades/haarcascade_eye.xml')
 
@@ -87,14 +87,16 @@ def get_cropped_image_if_2_eyes(image_path, image_base64_data):
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-
+    
     cropped_faces = []
     for (x,y,w,h) in faces:
-            roi_gray = gray[y:y+h, x:x+w]
-            roi_color = img[y:y+h, x:x+w]
-            eyes = eye_cascade.detectMultiScale(roi_gray)
-            if len(eyes) >= 2: #captures only if 2 eyes exist
-                cropped_faces.append(roi_color)
+        face_img = cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
+        roi_gray = gray[y:y+h, x:x+w]
+        roi_color = img[y:y+h, x:x+w]
+        eyes = eye_cascade.detectMultiScale(roi_gray)
+        if len(eyes) >= 1:
+            cropped_faces.append(roi_color)
+    
     return cropped_faces
 
 def class_number_to_name(class_number):
@@ -108,6 +110,13 @@ def get_b64_test_img_for_federer():
         return f.read()
 
 if __name__ == '__main__':
-    
     load_saved_artifacts()
-    print(classify_images(get_b64_test_img_for_federer(), file_path=None)) # should output label '4' from our dictionary
+    print(__class_name_to_numbers)
+    
+    #TEST
+    #testing base64 converted image
+    # print(classify_images(get_b64_test_img_for_federer(), None)) 
+    
+    #testing test_images
+    print(classify_images(None, 'server/test_images/roger-federer.webp'))
+    

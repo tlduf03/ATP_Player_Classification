@@ -20,6 +20,6 @@ def w2d(img, mode='haar', level=1):
     # reconstruction
     imArray_H=pywt.waverec2(coeffs_H, mode)
     imArray_H *= 255
-    imArray_H =  np.uint8(imArray_H)
+    imArray_H = np.uint8(imArray_H)
 
     return imArray_H
